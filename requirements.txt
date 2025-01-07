@@ -7,3 +7,4 @@ pyqt5-tools==5.15.9.3.3
 python-docx==1.1.2
 transliterate==1.10.2
 xls2xlsx==0.2.0
+pymorphy2==0.9.1

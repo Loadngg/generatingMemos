@@ -1,3 +1,4 @@
+import os
 import sys
 from threading import Thread
 
@@ -6,6 +7,7 @@ from PyQt5.QtCore import QDate
 from PyQt5.QtWidgets import QFileDialog
 
 from src.core.generator import generate
+from src.core.models.date_type import DateType
 from src.core.parser import parse
 from src.core.uploader import Uploader
 from src.ui.design import Ui_MainWindow
@@ -34,6 +36,10 @@ class App(QtWidgets.QMainWindow):
         current_date = QDate.currentDate()
         self.ui.edit_date.setDate(current_date)
 
+        self.ui.date_type_combo.addItems([DateType.numbers.value, DateType.words.value])
+
+        self.ui.output_dir_label.setText("Папка вывода: " + os.getcwd())
+
         self.enable_generating(False)
 
     def enable_generating(self, flag: bool = True) -> None:
@@ -45,7 +51,7 @@ class App(QtWidgets.QMainWindow):
             return
 
         self.template_path = filename
-        self.ui.template_label.setText(filename)
+        self.ui.template_label.setText(f"Шаблон: {filename.split('/')[-1]}")
 
     def btn_upload_handler(self) -> None:
         filename, _ = QFileDialog.getOpenFileName(self, filter="Excel (*.xls *.xlsx)")
@@ -54,6 +60,8 @@ class App(QtWidgets.QMainWindow):
 
         self.uploader.clear()
         self.enable_generating(False)
+        self.ui.data_label.setText(f"Данные: {filename.split('/')[-1]}")
+
         Thread(
             target=self.uploader.upload,
             args=(
@@ -64,8 +72,11 @@ class App(QtWidgets.QMainWindow):
 
     def btn_pick_dir_handler(self) -> None:
         path = QFileDialog.getExistingDirectory(self)
-        if path:
-            self.output_path = path + "/"
+        if not path:
+            return
+
+        self.output_path = path + "/"
+        self.ui.output_dir_label.setText("Папка вывода: " + self.output_path)
 
     def update_info_label(self, text):
         self.ui.info_label.setText(f"Статус: {text}")
@@ -77,8 +88,12 @@ class App(QtWidgets.QMainWindow):
             self.update_info_label("Не выбран шаблон")
             return
 
-        records = parse(self.uploader.get_book(), generating_date)
+        date_type = self.ui.date_type_combo.currentText()
+        records = parse(self.uploader.get_book(), generating_date, date_type)
+
         self.enable_generating(False)
+        self.update_info_label("В процессе...")
+
         Thread(
             target=generate,
             args=(

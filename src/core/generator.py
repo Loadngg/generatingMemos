@@ -11,7 +11,7 @@ from transliterate import translit
 from src.core.models.record import Record
 
 
-def _convert_docx_to_pdf(system: str, input_filepath: str, output_dir: str, output_filename: str):
+def _convert_docx_to_pdf(system: str, input_filepath: str, output_dir: str, output_filename: str) -> None:
     if system == "Windows":
         convert(input_filepath, f"{output_dir}/{output_filename}.pdf")
         return

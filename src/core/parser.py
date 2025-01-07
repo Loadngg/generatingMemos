@@ -1,11 +1,24 @@
+import calendar
 from typing import List
 
+import pymorphy2
 from openpyxl.workbook import Workbook
 
+from src.core.models.date_type import DateType
 from src.core.models.record import Record
 
 
-def parse(book: Workbook, generating_date: str) -> List[Record]:
+def _get_month_name(month: int) -> str:
+    name = calendar.month_name[month].lower()
+
+    morph = pymorphy2.MorphAnalyzer()
+
+    month_name = morph.parse(name)[0]
+    month_name_loct = month_name.inflect({'loct'})
+    return month_name_loct.word
+
+
+def parse(book: Workbook, generating_date: str, date_type: str) -> List[Record]:
     result: List[Record] = []
     sheet = book.worksheets[0]
 
@@ -25,7 +38,15 @@ def parse(book: Workbook, generating_date: str) -> List[Record]:
 
         date = str(row[2].value).strip().split(' ')[0]
         date = '.'.join(date.split('-')[::-1])
-        record.date = ["[date]", date + "г."]
+
+        if date_type == DateType.numbers.value:
+            date = date + "г."
+        else:
+            day, month, year = date.split('.')
+            month = _get_month_name(int(month))
+            date = month
+
+        record.date = ["[date]", date]
 
         print(record.generating_date)
         print(record.title)
