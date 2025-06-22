@@ -6,7 +6,8 @@ from PyQt5 import QtWidgets
 from PyQt5.QtCore import QDate
 from PyQt5.QtWidgets import QFileDialog
 
-from src.core.generator import generate
+from src.core import utils
+from src.core.generator import Generator
 from src.core.models.date_type import DateType
 from src.core.parser import parse
 from src.core.uploader import Uploader
@@ -28,22 +29,26 @@ class App(QtWidgets.QMainWindow):
         self.init_ui()
 
     def init_ui(self) -> None:
+        current_date = QDate.currentDate()
+
         self.ui.btn_upload.clicked.connect(self.btn_upload_handler)
         self.ui.btn_pick_dir.clicked.connect(self.btn_pick_dir_handler)
         self.ui.btn_generate.clicked.connect(self.btn_generate_handler)
         self.ui.btn_pick_template.clicked.connect(self.btn_pick_template_handler)
-
-        current_date = QDate.currentDate()
+        self.ui.date_type_combo.addItems([DateType.numbers.value, DateType.words.value])
+        self.ui.output_dir_label.setText("Папка вывода: " + os.getcwd())
         self.ui.edit_date.setDate(current_date)
 
-        self.ui.date_type_combo.addItems([DateType.numbers.value, DateType.words.value])
+        self.enable_generate_btn(False)
 
-        self.ui.output_dir_label.setText("Папка вывода: " + os.getcwd())
-
-        self.enable_generating(False)
-
-    def enable_generating(self, flag: bool = True) -> None:
+    def enable_generate_btn(self, flag: bool = True) -> None:
         self.ui.btn_generate.setEnabled(flag)
+
+    def enable_btns(self, flag: bool = True) -> None:
+        self.ui.btn_upload.setEnabled(flag)
+        self.ui.btn_pick_template.setEnabled(flag)
+        self.ui.btn_pick_dir.setEnabled(flag)
+        self.enable_generate_btn(flag)
 
     def btn_pick_template_handler(self) -> None:
         filename, _ = QFileDialog.getOpenFileName(self, filter="Docx (*.docx)")
@@ -59,14 +64,16 @@ class App(QtWidgets.QMainWindow):
             return
 
         self.uploader.clear()
-        self.enable_generating(False)
+        self.enable_btns(False)
         self.ui.data_label.setText(f"Данные: {filename.split('/')[-1]}")
+        self.update_info_label("Идёт подготовка данных...")
 
         Thread(
             target=self.uploader.upload,
             args=(
                 filename,
-                self.enable_generating
+                self.update_info_label,
+                self.enable_btns
             ),
         ).start()
 
@@ -85,23 +92,25 @@ class App(QtWidgets.QMainWindow):
         generating_date = self.ui.edit_date.text() + "г."
 
         if not self.template_path:
-            self.update_info_label("Не выбран шаблон")
+            utils.show_error(self, "Не выбран шаблон")
             return
 
         date_type = self.ui.date_type_combo.currentText()
-        records = parse(self.uploader.get_book(), generating_date, date_type)
+        book = self.uploader.get_book()
 
-        self.enable_generating(False)
+        records = parse(book, generating_date, date_type)
+        self.enable_btns(False)
         self.update_info_label("В процессе...")
 
+        generator = Generator()
         Thread(
-            target=generate,
+            target=generator.generate,
             args=(
                 self.template_path,
                 records,
                 self.output_path,
                 self.update_info_label,
-                self.enable_generating
+                self.enable_btns
             ),
         ).start()
 

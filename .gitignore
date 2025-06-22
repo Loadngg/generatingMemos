@@ -13,6 +13,10 @@ __pycache__/
 
 /temlates
 
-.xlsx
-.docx
-.pdf
+/dist
+/build
+/output
+**/*.spec
+**/*.xlsx
+**/*.docx
+**/*.pdf

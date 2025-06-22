@@ -1,75 +1,89 @@
 import os
-import platform
-import subprocess
-from typing import List, Callable
+from typing import Callable, List
 
 from docx import Document
+from docx.document import Document as DocumentObject
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx2pdf import convert
-from transliterate import translit
+from docx.text.paragraph import Paragraph
 
+from src.core import utils
+from src.core.models.field import Field
 from src.core.models.record import Record
 
 
-def _convert_docx_to_pdf(system: str, input_filepath: str, output_dir: str, output_filename: str) -> None:
-    if system == "Windows":
-        convert(input_filepath, f"{output_dir}/{output_filename}.pdf")
-        return
+class Generator:
+    doc: DocumentObject = None
 
-    command = [
-        "libreoffice",
-        "--headless",
-        "--convert-to",
-        "pdf",
-        "--outdir",
-        output_dir,
-        input_filepath
-    ]
-    subprocess.run(command, check=True)
+    def generate(self, template_path: str, records: List[Record], output_path: str,
+                 update_info_label: Callable, enable_generating: Callable) -> None:
+        last_generated_name: str = ''
 
+        output_path = output_path + template_path.split('/')[-1].split('.')[0] + '/'
+        if not os.path.exists(output_path):
+            os.mkdir(output_path)
 
-def generate(template_path: str, records: List[Record], output_path: str, update_info_label: Callable,
-             enable_generating: Callable) -> None:
-    last_generated_name: str = ''
-    system = platform.system()
+        for item in records:
+            if not item.full_name or not item.full_name.text:
+                raise
+            second_name = item.full_name.text.split(' ')[0]
+            if last_generated_name != item.full_name.text:
+                last_generated_name = item.full_name.text
 
-    for item in records:
+            self.doc = Document(template_path)
+            self._set_content(item)
+
+            title = ""
+            if item.event_title and item.event_title.text:
+                title = item.event_title.text
+            else:
+                titles = []
+                for data in item.events.values():
+                    titles.append(data[1].text)
+
+                title = " ".join(titles)
+
+            title = " ".join(title.split()).strip()
+
+            self._save(second_name, output_path, title)
+            update_info_label(f"сгенерировано для {second_name}")
+
+        update_info_label(f'файлы были успешно сгенерированы - {len(records)}')
+        enable_generating()
+
+    def _set_institute(self, institute: Field) -> None:
+        table_text: str = self.doc.tables[0].rows[0].cells[1].text
+        self.doc.tables[0].rows[0].cells[1].text = table_text.replace(institute.tag, institute.text)
+        self.doc.tables[0].rows[0].cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
+    def _set_content(self, item: Record) -> None:
         item_fields = item.get_fields()
 
-        second_name = item.full_name[1].split(' ')[0]
+        self._set_institute(item.institute)
 
-        if last_generated_name != item.full_name[1]:
-            last_generated_name = item.full_name[1]
-
-        doc = Document(template_path)
-
-        table_text: str = doc.tables[0].rows[0].cells[1].text
-        doc.tables[0].rows[0].cells[1].text = table_text.replace(item.institute[0], item.institute[1])
-        doc.tables[0].rows[0].cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
-
-        for p in doc.paragraphs:
+        for p in self.doc.paragraphs:
             for field in item_fields:
-                key = field[0]
-                value = field[1]
-                p.text = p.text.replace(key, value)
+                if type(field) == Field:
+                    self._set_text(p, field)
+                elif type(field) == dict:
+                    for data in field.values():
+                        for data_field in data:
+                            self._set_text(p, data_field)
 
-        output_name = (translit(second_name, language_code='ru', reversed=True)
-                       + ' '
-                       + translit(' '.join(item.title[1].split(' ')[:3]), language_code='ru', reversed=True)
-                       + ' '
-                       + item.date[1])
+    @staticmethod
+    def _set_text(p: Paragraph, field: Field) -> None:
+        key = field.tag
+        value = field.text
+        if value is None:
+            return
+        p.text = p.text.replace(key, value)
+
+    def _save(self, second_name: str, output_path: str, title: str) -> None:
+        output_title = ' '.join(title.split(' ')[:5])
+        output_name = (f"{utils.get_translit(second_name)} "
+                       f"{utils.get_translit(output_title)}")
 
         output_file = output_path + output_name + '.docx'
         pdf_path = output_path + second_name
 
-        doc.save(output_file)
-
-        if not os.path.exists(pdf_path):
-            os.makedirs(pdf_path)
-
-        _convert_docx_to_pdf(system, output_file, pdf_path, output_name)
-
-        update_info_label(f"сгенерировано для {second_name}")
-
-    update_info_label(f'файлы были успешно сгенерированы - {len(records)}')
-    enable_generating()
+        self.doc.save(output_file)
+        utils.save_pdf(output_file, pdf_path, output_name)

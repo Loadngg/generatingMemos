@@ -1,36 +1,73 @@
-from typing import List
+from typing import Dict, List, Union
+
+from src.core.models.field import Field
 
 
 class Record:
-    institute: List[str] = []
-    generating_date: List[str] = []
-    full_name: List[str] = []
-    group: List[str] = []
-    title: List[str] = []
-    date: List[str] = []
-    type: List[str] = ["[type]"]
+    institute: Field
+    generating_date: Field
+    full_name: Field
+    group: Field
+    type_field: Field
+    events: Dict[int, List[Field]]
+    event_title: Field
+    event_date: Field
 
-    def get_record(self) -> str:
-        result = " ".join(
-            [
-                self.title[1],
-                self.date[1],
-                self.full_name[1],
-                self.group[1],
-                self.institute[1],
-                self.type[1],
-                self.generating_date[1]
-            ]
-        )
-        return result
+    def __init__(
+            self,
+            institute: Field,
+            generating_date: Field,
+            full_name: Field,
+            group: Field,
+            type_field: Field,
+            events: Dict[int, List[Field]],
+            event_title: Field,
+            event_date: Field
+    ) -> None:
+        self.institute = institute
+        self.generating_date = generating_date
+        self.full_name = full_name
+        self.group = group
+        self.type_field = type_field
+        self.events = events
+        self.event_title = event_title
+        self.event_date = event_date
 
-    def get_fields(self) -> List[List[str]]:
-        return [
-            self.title,
-            self.date,
+    def get_fields(self) -> List[Union[Field, Dict[int, List[Field]]]]:
+        fields = [
+            self.institute,
+            self.generating_date,
             self.full_name,
             self.group,
-            self.institute,
-            self.type,
-            self.generating_date,
+            self.type_field,
+            self.event_date,
+            self.event_title,
+            self.events
         ]
+        return fields
+
+    def __str__(self) -> str:
+        sections = [
+            f"Институт: {self.institute}",
+            f"Дата генерации: {self.generating_date}",
+            f"ФИО: {self.full_name}",
+            f"Группа: {self.group}",
+            f"Тип: {self.type_field}",
+        ]
+
+        if self.event_date or self.event_title:
+            sections.append("Одиночное мероприятие:")
+            sections.append(f"  Название: {self.event_title}")
+            sections.append(f"  Дата: {self.event_date}")
+
+        if self.events:
+            sections.append("Нумерованные мероприятия:")
+            for event_id, fields in sorted(self.events.items()):
+                event_date = fields[0] if len(fields) > 0 else "Нет даты"
+                event_title = fields[1] if len(fields) > 1 else "Нет названия"
+
+                sections.append(f"  Мероприятие {event_id}:")
+                sections.append(f"    Дата: {event_date}")
+                sections.append(f"    Название: {event_title}")
+
+        return "\n" + "\n".join(sections)
